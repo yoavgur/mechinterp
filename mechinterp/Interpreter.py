@@ -22,8 +22,8 @@ class Interpreter:
         """
         self.model = model
 
-    def logit_lens(self, act: InterpTensorType, topk: int = 20, bottomk: int = 20, use_final_ln=True) -> LogitLensOutput:
+    def logit_lens(self, act: InterpTensorType, k: int = 20, use_final_ln=True, use_first_mlp=False) -> LogitLensOutput:
         """
         Run the logit lens on the given activations.
         """
-        return InterpVector(self.model, act).logit_lens(topk=topk, bottomk=bottomk, use_final_ln=use_final_ln)
+        return InterpVector(self.model, act).logit_lens(k=k, use_final_ln=use_final_ln, use_first_mlp=use_first_mlp)

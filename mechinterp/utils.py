@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Tuple, Union
 from jaxtyping import Float
 import torch
 
@@ -30,10 +30,13 @@ def recursive_flatten(lst):
             flattened.append(item)
     return flattened
 
+def transpose_tensor(tensor: torch.Tensor) -> torch.Tensor:
+    return tensor.permute(*reversed(range(tensor.ndim))).contiguous()
+
 def align_tensor(tensor: InterpTensorType, d_model: int) -> Float[torch.Tensor, "... d_model"]:
     if tensor.shape[-1] == d_model:
         return tensor
     elif tensor.shape[0] == d_model:
-        return tensor.T
+        return transpose_tensor(tensor)
     else:
         raise ValueError(f"Tensor shape {tensor.shape} does not match d_model {d_model}")
