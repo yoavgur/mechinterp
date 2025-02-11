@@ -4,8 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mechinterp"
-version = "0.0.4"
+version = "0.0.5"
 authors = [{name = "Yoav Gur-Arieh", email = "yoavgurarieh@gmail.com"}]
 description = "Library for easily using interpretability techniques in transformer models"
 readme = "README.md"
 dependencies = ["transformer_lens", "jaxtyping", "torch"]
+
+[tool.setuptools]
+packages = ["mechinterp"]

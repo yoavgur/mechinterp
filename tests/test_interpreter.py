@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Tuple
 import torch
 import pytest
 from transformer_lens import HookedTransformer
@@ -32,8 +33,8 @@ def test_logit_lens(model: HookedTransformer, input_token: str, top_tokens: list
     v = model.embed(model.to_tokens(input_token, prepend_bos=False)[0,0])
     ll = interp.logit_lens(v, k=len(top_tokens), use_first_mlp=True)
 
-    assert ll.topk == top_tokens
-    assert ll.bottomk == bottom_tokens
+    assert ll.top == top_tokens
+    assert ll.bottom == bottom_tokens
 
 @pytest.mark.parametrize("shape, k", [
     ((D_MODEL,), 10),
@@ -61,3 +62,10 @@ def test_logit_lens_shape(model: HookedTransformer, shape: tuple[int, ...], k: i
         assert ll.shape == (*[x for x in shape[:-1] if x != 1], k)
     else:
         assert ll.shape == (*reversed([x for x in shape[1:] if x != 1]), k)
+
+@pytest.mark.parametrize("shape", [(1,), (1, 2, 3, 4), (2, D_MODEL, 3)])
+def test_logit_lens_bad_shape(model: HookedTransformer, shape: Tuple[int, ...]):
+    interp = Interpreter(model)
+    v = get_v(shape)
+    with pytest.raises(ValueError):
+        interp.logit_lens(v, k=10)
