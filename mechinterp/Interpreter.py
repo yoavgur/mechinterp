@@ -51,7 +51,12 @@ class Interpreter:
             target_model=target_model,
             target_layer=target_layer
         )
-
+    
+    def activation_addition(self):
+        # [TODO] It's also popular to use X_l += \alpha * X_l, with some meaningful direction,
+        #        so we can consider adding this as well.
+        raise NotImplementedError("Activation addition not implemented yet")
+    
     def activation_patching(self):
         raise NotImplementedError("Activation patching not implemented yet")
     
