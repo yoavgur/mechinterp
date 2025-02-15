@@ -62,4 +62,8 @@ class Interpreter:
     
     def attribution_patching(self):
         raise NotImplementedError("Attribution patching not implemented yet")
+
+    def find_mlp_key_vals_for_direction(self):
+        # [TODO] Given a direction, find the MLP keys it activates most, and return the corresponding MLP values for (potential) further inspection. 
+        raise NotImplementedError()
     
