@@ -51,10 +51,19 @@ class Interpreter:
             target_model=target_model,
             target_layer=target_layer
         )
-
+    
+    def activation_addition(self):
+        # [TODO] It's also popular to use X_l += \alpha * X_l, with some meaningful direction,
+        #        so we can consider adding this as well.
+        raise NotImplementedError("Activation addition not implemented yet")
+    
     def activation_patching(self):
         raise NotImplementedError("Activation patching not implemented yet")
     
     def attribution_patching(self):
         raise NotImplementedError("Attribution patching not implemented yet")
+
+    def find_mlp_key_vals_for_direction(self):
+        # [TODO] Given a direction, find the MLP keys it activates most, and return the corresponding MLP values for (potential) further inspection. 
+        raise NotImplementedError()
     
