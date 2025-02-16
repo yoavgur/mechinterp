@@ -93,8 +93,6 @@ def cosine_with_direction(
     (ii) a tensor with these similarities (n_hooks, seq_len).
     """
 
-    n_layers = model.cfg.n_layers
-
     # 1. Cache the relevant hidden states:
     assert on_hook in ['resid', 'attn_out', 'mlp_out', 'decomp_resid'], f"Unsupported hook: {on_hook}"
     on_hook_tl = {  # translate to TransformerLens hooks:
@@ -108,7 +106,9 @@ def cosine_with_direction(
     if on_hook == 'decompose_resid':
         hidden_states, labels = cache.decompose_resid(return_labels=True)
         hidden_states = hidden_states.squeeze(1) # layer, seq, hidden
+        n_layers = hidden_states.shape[0]
     else:
+        n_layers = model.cfg.n_layers
         hidden_states = torch.stack([
             cache[on_hook_tl.format(layer=layer)] for layer in range(n_layers)
             ], dim=1).squeeze(0)  # layer, seq, hidden
