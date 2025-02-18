@@ -1,6 +1,6 @@
 """Provides classes for interpreting model vectors, including logit lens functionality."""
 import torch
-from typing import Callable
+from typing import Callable, Union
 from transformer_lens import HookedTransformer
 from .utils import reshape_list, recursive_flatten, align_tensor, InterpTensorType
 
@@ -34,6 +34,10 @@ class LogitLensOutput:
 class TunedLensOutput(LogitLensOutput):
     """Output of the tuned logit lens, containing top and bottom tokens."""
     METHOD_NAME = "Tuned Logit Lens"
+
+class VOProjectionOutput(LogitLensOutput):
+    """Output of applying an attention head's VO to a token, and then projecting to vocabulary."""
+    METHOD_NAME = "VO Projection"
 
 
 class PatchscopesOutput:
@@ -83,6 +87,10 @@ class InterpVector:
     def tuned_lens(self, k: int = 20, lens: str | None = None) -> TunedLensOutput:
         # Lenses can be taken from here - https://huggingface.co/spaces/AlignmentResearch/tuned-lens/tree/main/lens
         raise NotImplementedError("Tuned lens not implemented yet")
+    
+    def vo_project(self, k: int = 20) -> VOProjectionOutput:
+        """Apply the VO of an attention head to a token, and then project to vocabulary."""
+        raise NotImplementedError("VO project not implemented yet")
 
     def patchscopes(
             self,
