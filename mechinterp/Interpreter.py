@@ -1,8 +1,12 @@
 """
 This module defines the Interpreter class, which provides interpretation methods for transformer models.
 """
+from contextlib import contextmanager
+from typing import Iterator
+import torch
+from jaxtyping import Float
 from transformer_lens import HookedTransformer
-from .ModelVector import InterpVector, LogitLensOutput, PatchscopesOutput, PSMappingFunction, TunedLensOutput
+from .ModelVector import InterpVector, LogitLensOutput, PatchscopesOutput, PSMappingFunction, TunedLensOutput, VOProjectionOutput
 from .utils import InterpTensorType
 
 class Interpreter:
@@ -52,9 +56,36 @@ class Interpreter:
             target_layer=target_layer
         )
 
+    def vo_project(self, act: InterpTensorType, k: int = 20) -> VOProjectionOutput:
+        raise NotImplementedError("VO projection not implemented yet")
+
     def activation_patching(self):
         raise NotImplementedError("Activation patching not implemented yet")
     
     def attribution_patching(self):
         raise NotImplementedError("Attribution patching not implemented yet")
+
+    #### Maybe put under steering submodule? ####
+    def diff_in_means(self, group1: list[str] | torch.Tensor, group2: list[str] | torch.Tensor) -> float:
+        """
+        Calculate the difference in means when doing forward passes with group1 vs group2.
+        """
+        # Can reference this - https://www.semanticscholar.org/reader/fe303bbaae47b1b08d0641b41d3288fcd74a3a80
+        raise NotImplementedError("Diff in means not implemented yet")
+
+    @contextmanager
+    def activation_addition(self, act: Float[torch.Tensor, "d_model"], layer: int) -> Iterator[None]:
+        """
+        Adds hooks to steer the activations of the model.
+        """
+        raise NotImplementedError("Activation addition not implemented yet")
+
+    @contextmanager
+    def directional_ablation(self, act: Float[torch.Tensor, "d_model"], layer: int) -> Iterator[None]:
+        """
+        Adds hooks to ablate the activations of the model.
+        """
+        raise NotImplementedError("Directional ablation not implemented yet")
+    
+    #############################################
     
