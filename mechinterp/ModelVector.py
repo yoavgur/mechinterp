@@ -1,10 +1,9 @@
 """Provides classes for interpreting model vectors, including logit lens functionality."""
 import torch
-from typing import Callable, Union
 from transformer_lens import HookedTransformer
-from .utils import reshape_list, recursive_flatten, align_tensor, InterpTensorType
-
-PSMappingFunction = Callable[[torch.Tensor], torch.Tensor]
+from transformer_lens.hook_points import HookPoint
+from .internal_utils import count_placeholders, format_toks, reshape_list, recursive_flatten, align_tensor, InterpTensorType
+from .utils import PatchscopesTargetPrompts
 class LogitLensOutput:
     """Output of the logit lens, containing top and bottom tokens."""
     METHOD_NAME = "Logit Lens"
@@ -41,11 +40,11 @@ class VOProjectionOutput(LogitLensOutput):
 
 
 class PatchscopesOutput:
-    def __init__(self, explanation: str):
+    def __init__(self, explanation: str | list[str]):
         self.explanation = explanation
 
     def __str__(self):
-        return f"Patchscopes Explanation:\n{self.explanation}"
+        return f"Patchscopes Explanation: '{self.explanation}'"
 
     def __repr__(self):
         return self.__str__()
@@ -55,11 +54,11 @@ class InterpVector:
     def __init__(self, model: HookedTransformer, vector: InterpTensorType):
         """Initialize InterpVector with a model and a vector."""
         self.model = model
-        self.vector = align_tensor(vector, model.cfg.d_model)
+        self.vector = align_tensor(vector, model.cfg.d_model).squeeze()
 
     def logit_lens(self, k: int = 20, use_final_ln=True, use_first_mlp=False) -> LogitLensOutput:
         """Perform logit lens analysis on the vector."""
-        act = self.vector.clone().squeeze()
+        act = self.vector.clone()
 
         # TODO: Validate this with Amit
         if use_first_mlp:
@@ -94,14 +93,61 @@ class InterpVector:
 
     def patchscopes(
             self,
-            prompt: str,
-            n: int = 20,
-            target_token: str | None = None,
-            target_position: int | None = None,
-            mapping_function: PSMappingFunction = lambda x: x,
+            prompt: str = PatchscopesTargetPrompts.DESCRIPTION_FEW_SHOT,
+            n: int = 30,
             target_model: HookedTransformer | None = None,
-            target_layer: int = 1,
+            target_layer: int = 2,
+            temperature: float = 0.3,
+            placeholder_token: str = "X",
+            prepend_bos: bool = True
         ) -> PatchscopesOutput:
-        # TODO: Assert that self.vector is the correct shape (d_mode). I guess we could support multi modes, but that
-        # would mean doing so in a for loop, i.e. much less efficient than logit_lens.
-        raise NotImplementedError("Patchscopes not implemented yet")
+        """Apply patchscopes to the vector, using the given prompt.
+
+        The vector will be patched into the placeholder positions in the prompt, like 'The meaning of {} is:'.
+        If the vector is a batch, you must provide the same amount of placeholders as the batch size, and they'll be patched
+        in to the corresponding positions, for example 'The meaning of {}{}{} is:' for a batch of size 3.
+
+        Args:
+            prompt: Prompt to apply patchscopes to. The prompt must contain placeholders ('{}') where the vector will be
+            patched in to. If the vector is a batch, you must provide the same amount of placeholders as the batch size,
+            and they'll be patched in to the corresponding positions. The prompt defaults to a few-shot description prompt.
+            n: Max number of tokens to generate.
+            target_model: Model to apply patchscopes to - defaults to the model the object was initialized with.
+            target_layer: Layer to apply patchscopes to - defaults to layer 2.
+            temperature: Temperature for generation - defaults to 0.3.
+            placeholder_token: Token to use for the placeholder - defaults to "X". This shouldn't matter unless the layer
+            is very high, in which case it's possible that it'll start having some effect on next tokens.
+            prepend_bos: Whether to prepend the BOS token to the prompt - defaults to True.
+
+        Returns:
+            PatchscopesOutput: an object containing the generated explanation.
+        """
+
+        target_model = target_model if target_model is not None else self.model
+
+        vector = self.vector.clone()
+        if len(vector.shape) == 1:
+           vector = vector.unsqueeze(0)
+
+        assert len(vector.shape) <= 2, f"Vector must be (d_model,) or (batch_size, d_model), got {vector.shape}"
+        num_placeholders = count_placeholders(prompt)
+        assert num_placeholders == vector.shape[0], f"Prompt must contain {vector.shape[0]} placeholders, got {num_placeholders}."
+
+        prompt_toks, indices = format_toks(target_model, prompt, placeholder_token, prepend_bos=prepend_bos)
+
+        # We define hook_ran since when using kv cache, the second time and onwards the hook is called with just one
+        # token, i.e. we only need to apply the patch once.
+        hook_ran = False
+        def hook_patch_in_act(tensor: torch.Tensor, hook: HookPoint) -> torch.Tensor | None:
+            nonlocal hook_ran
+            if not hook_ran:
+                for i in range(vector.shape[0]):
+                    tensor[:, indices[i]] = vector[i]
+                hook_ran = True
+
+            return tensor
+
+        with target_model.hooks(fwd_hooks=[(f"blocks.{target_layer}.hook_resid_pre", hook_patch_in_act)]):
+            generated_toks = target_model.generate(prompt_toks.unsqueeze(0), max_new_tokens=n, verbose=False, temperature=temperature, use_past_kv_cache=True)
+
+        return PatchscopesOutput(target_model.to_string(generated_toks)[0])

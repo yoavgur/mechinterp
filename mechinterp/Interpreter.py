@@ -6,9 +6,9 @@ from typing import Iterator
 import torch
 from jaxtyping import Float
 from transformer_lens import HookedTransformer
-from .ModelVector import InterpVector, LogitLensOutput, PatchscopesOutput, PSMappingFunction, TunedLensOutput, VOProjectionOutput
-from .utils import InterpTensorType
-
+from .ModelVector import InterpVector, LogitLensOutput, PatchscopesOutput, TunedLensOutput, VOProjectionOutput
+from .internal_utils import InterpTensorType
+from .utils import PatchscopesTargetPrompts
 class Interpreter:
     """
     The Interpreter class is a wrapper around a HookedTransformer model that provides interpretation methods.
@@ -38,22 +38,45 @@ class Interpreter:
     def patchscopes(
             self,
             act: InterpTensorType,
-            prompt: str,
-            n: int = 20,
-            target_token: str | None = None,
-            target_position: int | None = None,
-            mapping_function: PSMappingFunction = lambda x: x,
+            prompt: str = PatchscopesTargetPrompts.DESCRIPTION_FEW_SHOT,
+            n: int = 30,
             target_model: HookedTransformer | None = None,
-            target_layer: int = 1,
+            target_layer: int = 2,
+            temperature: float = 0.3,
+            placeholder_token: str = "X",
+            prepend_bos: bool = True
         ) -> PatchscopesOutput:
+        """Apply patchscopes to the vector, using the given prompt.
+
+        The vector will be patched into the placeholder positions in the prompt, like 'The meaning of {} is:'.
+        If the vector is a batch, you must provide the same amount of placeholders as the batch size, and they'll be patched
+        in to the corresponding positions, for example 'The meaning of {}{}{} is:' for a batch of size 3.
+
+        Args:
+            act: The vector to apply patchscopes to.
+            prompt: Prompt to apply patchscopes to. The prompt must contain placeholders ('{}') where the vector will be
+            patched in to. If the vector is a batch, you must provide the same amount of placeholders as the batch size,
+            and they'll be patched in to the corresponding positions. The prompt defaults to a few-shot description prompt.
+            n: Max number of tokens to generate.
+            target_model: Model to apply patchscopes to - defaults to the model the object was initialized with.
+            target_layer: Layer to apply patchscopes to - defaults to layer 2.
+            temperature: Temperature for generation - defaults to 0.3.
+            placeholder_token: Token to use for the placeholder - defaults to "X". This shouldn't matter unless the layer
+            is very high, in which case it's possible that it'll start having some effect on next tokens.
+            prepend_bos: Whether to prepend the BOS token to the prompt - defaults to True.
+
+        Returns:
+            PatchscopesOutput: an object containing the generated explanation.
+        """
+
         return InterpVector(self.model, act).patchscopes(
             prompt=prompt,
             n=n,
-            target_token=target_token,
-            target_position=target_position,
-            mapping_function=mapping_function,
             target_model=target_model,
-            target_layer=target_layer
+            target_layer=target_layer,
+            temperature=temperature,
+            placeholder_token=placeholder_token,
+            prepend_bos=prepend_bos
         )
 
     def vo_project(self, act: InterpTensorType, k: int = 20) -> VOProjectionOutput:
