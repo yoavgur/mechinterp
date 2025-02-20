@@ -126,3 +126,17 @@ def test_tuned_lens(model: HookedTransformer, input_token: str, layer: int, pos:
 
     assert ll.top == top_tokens
     assert ll.bottom == bottom_tokens
+
+@pytest.mark.parametrize("input_token, layer, pos, head, top_tokens, bottom_tokens", [
+    ("Hello World", 10, 1, 5, ['!!', '!', ' again', '!!!'], ['than', ' rather', ' outwe', ' outweigh']),
+])
+
+def test_vo_project(model: HookedTransformer, input_token: str, layer: int, pos: int, head: int, top_tokens: list[str], bottom_tokens: list[str]):
+    interp = Interpreter(model)
+
+    logits, cache = model.run_with_cache(input_token)    
+    ll = interp.vo_project(cache[f"blocks.{layer}.hook_resid_post"][0, pos], l=layer, h=head, k=4)
+    print(ll)
+
+    assert ll.top == top_tokens
+    assert ll.bottom == bottom_tokens
