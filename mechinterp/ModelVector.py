@@ -2,8 +2,14 @@
 import torch
 from transformer_lens import HookedTransformer
 from transformer_lens.hook_points import HookPoint
-from .internal_utils import count_placeholders, format_toks, reshape_list, recursive_flatten, align_tensor, InterpTensorType
+from .internal_utils import count_placeholders, format_toks, reshape_list, recursive_flatten, align_tensor, InterpTensorType, get_model_identifier
 from .utils import PatchscopesTargetPrompts
+from tuned_lens import TunedLens
+from tuned_lens import load_artifacts
+from huggingface_hub import list_models
+from huggingface_hub import hf_hub_download
+
+
 class LogitLensOutput:
     """Output of the logit lens, containing top and bottom tokens."""
     METHOD_NAME = "Logit Lens"
@@ -83,9 +89,46 @@ class InterpVector:
 
         return LogitLensOutput(topk_tokens, logits_topk.values, bottomk_tokens, logits_bottomk.values, act.shape[:-1], k)
 
-    def tuned_lens(self, k: int = 20, lens: str | None = None) -> TunedLensOutput:
+    def tuned_lens(self, l, k: int = 20) -> TunedLensOutput:
         # Lenses can be taken from here - https://huggingface.co/spaces/AlignmentResearch/tuned-lens/tree/main/lens
-        raise NotImplementedError("Tuned lens not implemented yet")
+
+        model_name = self.model.cfg.model_name
+        model_path = get_model_identifier(model_name)
+
+        try:
+            artifacts = load_artifacts.load_lens_artifacts(model_path)
+        except:
+            print("Model not found in tuned-lens repository")
+            return
+
+        with open(artifacts[1], 'rb') as f:
+            lens = torch.load(f)
+        
+        weights = lens[f"{l}.weight"]
+        bias = lens[f"{l}.bias"]
+
+        act = self.vector.clone()
+        device = act.device
+        weights = weights.to(device)
+        bias = bias.to(device)
+
+        act = act + torch.matmul(act, weights.T) + bias
+
+        logits = self.model.unembed(act)
+        logits_topk = torch.topk(logits, k, dim=-1, largest=True)
+        logits_bottomk = torch.topk(logits, k, dim=-1, largest=False)
+
+        topk_tokens = reshape_list(
+            self.model.to_str_tokens(logits_topk.indices.flatten()),
+            logits_topk.indices.shape
+        )
+
+        bottomk_tokens = reshape_list(
+            self.model.to_str_tokens(logits_bottomk.indices.flatten()),
+            logits_bottomk.indices.shape
+        )
+
+        return TunedLensOutput(topk_tokens, logits_topk.values, bottomk_tokens, logits_bottomk.values, act.shape[:-1], k)
     
     def vo_project(self, k: int = 20) -> VOProjectionOutput:
         """Apply the VO of an attention head to a token, and then project to vocabulary."""

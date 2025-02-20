@@ -93,3 +93,26 @@ def format_toks(model: HookedTransformer, prompt, placeholder_tok="X", prepend_b
     splits = split_by_placeholders(prompt)
     output, indices = join_list(tok, splits, model, prepend_bos=prepend_bos)
     return torch.tensor(output), indices
+
+def get_model_identifier(model_name):
+    model_name = model_name.lower()
+    if model_name == "stable-vicuna":
+        return "CarperAI/stable-vicuna-13b"
+    if model_name.startswith("pythia"):
+        return f"EleutherAI/{model_name}"
+    elif model_name.startswith("gpt-neox"):
+        return f"EleutherAI/{model_name}"
+    elif model_name.startswith("llama-2"):
+        return f"meta-llama/{model_name}"
+    elif model_name.startswith("meta-llama"):
+        return f"meta-llama/{model_name}"
+    elif model_name.startswith("llama"):
+        return f"facebook/{model_name}"
+    elif model_name.startswith("opt"):
+        return f"facebook/{model_name}"
+    elif model_name.startswith("gpt2"):
+        return model_name
+    elif model_name.startswith("vicuna"):
+        return f"lmsys/{model_name}"
+    else:
+        return model_name
