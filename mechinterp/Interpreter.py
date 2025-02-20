@@ -4,11 +4,14 @@ This module defines the Interpreter class, which provides interpretation methods
 from contextlib import contextmanager
 from typing import Iterator
 import torch
+from tqdm import tqdm
 from jaxtyping import Float
 from transformer_lens import HookedTransformer
+from transformer_lens import patching
 from .ModelVector import InterpVector, LogitLensOutput, PatchscopesOutput, TunedLensOutput, VOProjectionOutput
-from .internal_utils import InterpTensorType
-from .utils import PatchscopesTargetPrompts
+from .internal_utils import InterpTensorType, ScoringFunction, count_placeholders, split_by_placeholders, get_placeholder_contents
+from .utils import PatchscopesTargetPrompts, PatchingMethod
+
 class Interpreter:
     """
     The Interpreter class is a wrapper around a HookedTransformer model that provides interpretation methods.
@@ -82,33 +85,68 @@ class Interpreter:
     def vo_project(self, act: InterpTensorType, l: int, h: int, k: int = 20) -> VOProjectionOutput:
         return InterpVector(self.model, act).vo_project(l=l, h=h, k=k)
 
-    def activation_patching(self):
-        raise NotImplementedError("Activation patching not implemented yet")
+    @torch.no_grad()
+    def activation_patching(self, clean: str, scoring_function: ScoringFunction, patching_method: PatchingMethod, dirty: str | None = None, indices: list[int] | None = None):
+        if dirty is None:
+            assert count_placeholders(clean) == 1, "If dirty is not provided, clean must contain exactly one placeholder"
+            before, after = split_by_placeholders(clean)
+            placeholder_contents = get_placeholder_contents(clean)[0].split("/")
+            assert len(placeholder_contents) == 2, "Placeholder contents must contain exactly two items"
+            assert len(self.model.to_tokens(placeholder_contents[0])) == len(self.model.to_tokens(placeholder_contents[1])), "Placeholder contents must contain the same number of tokens"
+            clean = before + placeholder_contents[0] + after
+            dirty = before + placeholder_contents[1] + after
+            
+        _, clean_cache = self.model.run_with_cache(clean)
+        corrupted_tokens = self.model.to_tokens(dirty)
+
+        if patching_method == PatchingMethod.ResidAttnMLP:
+            return patching.get_act_patch_block_every(self.model, corrupted_tokens, clean_cache, scoring_function)
+        
+        elif patching_method == PatchingMethod.ResidPre:
+            return patching.get_act_patch_resid_mid(self.model, corrupted_tokens, clean_cache, scoring_function)
+
+        elif patching_method == PatchingMethod.ResidMid:
+            return patching.get_act_patch_resid_mid(self.model, corrupted_tokens, clean_cache, scoring_function)
+
+        elif patching_method == PatchingMethod.MlpOut:
+            return patching.get_act_patch_mlp_out(self.model, corrupted_tokens, clean_cache, scoring_function)
+        
+        elif patching_method == PatchingMethod.AttnOut:
+            return patching.get_act_patch_attn_out(self.model, corrupted_tokens, clean_cache, scoring_function)
+
+        elif patching_method == PatchingMethod.AttnHead:
+            return patching.get_act_patch_attn_head_out_by_pos(self.model, corrupted_tokens, clean_cache, scoring_function)
+        
+        elif patching_method == PatchingMethod.AttnHeadAllPos:
+            return patching.get_act_patch_attn_head_out_all_pos(self.model, corrupted_tokens, clean_cache, scoring_function)
+
+        else:
+            raise ValueError(f"Invalid patching method: {patching_method}")
     
     def attribution_patching(self):
         raise NotImplementedError("Attribution patching not implemented yet")
 
-    #### Maybe put under steering submodule? ####
-    def diff_in_means(self, group1: list[str] | torch.Tensor, group2: list[str] | torch.Tensor) -> float:
-        """
-        Calculate the difference in means when doing forward passes with group1 vs group2.
-        """
-        # Can reference this - https://www.semanticscholar.org/reader/fe303bbaae47b1b08d0641b41d3288fcd74a3a80
-        raise NotImplementedError("Diff in means not implemented yet")
+    # #### Maybe put under steering submodule? ####
+    # def diff_in_means(self, group1: list[str] | torch.Tensor, group2: list[str] | torch.Tensor) -> float:
+    #     """
+    #     Calculate the difference in means when doing forward passes with group1 vs group2.
+    #     """
+    #     # Can reference this - https://www.semanticscholar.org/reader/fe303bbaae47b1b08d0641b41d3288fcd74a3a80
+    #     raise NotImplementedError("Diff in means not implemented yet")
 
-    @contextmanager
-    def activation_addition(self, act: Float[torch.Tensor, "d_model"], layer: int) -> Iterator[None]:
-        """
-        Adds hooks to steer the activations of the model.
-        """
-        raise NotImplementedError("Activation addition not implemented yet")
+    # @contextmanager
+    # def activation_addition(self, act: Float[torch.Tensor, "d_model"], layer: int) -> Iterator[None]:
+    #     """
+    #     Adds hooks to steer the activations of the model.
+    #     """
+    #     raise NotImplementedError("Activation addition not implemented yet")
 
-    @contextmanager
-    def directional_ablation(self, act: Float[torch.Tensor, "d_model"], layer: int) -> Iterator[None]:
-        """
-        Adds hooks to ablate the activations of the model.
-        """
-        raise NotImplementedError("Directional ablation not implemented yet")
+    # @contextmanager
+    # def directional_ablation(self, act: Float[torch.Tensor, "d_model"], layer: int) -> Iterator[None]:
+    #     """
+    #     Adds hooks to ablate the activations of the model.
+    #     """
+    #     raise NotImplementedError("Directional ablation not implemented yet")
     
-    #############################################
+    # #############################################
     

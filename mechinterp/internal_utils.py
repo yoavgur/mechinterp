@@ -1,10 +1,11 @@
 import string
 from transformer_lens import HookedTransformer
-from typing import Union
+from typing import Union, Callable
 from jaxtyping import Float
 import torch
 
 InterpTensorType = Union[Float[torch.Tensor, "... d_model"], Float[torch.Tensor, "d_model ..."]]
+ScoringFunction = Callable[[Float[torch.Tensor, "batch pos d_model"]],  torch.Tensor]
 
 def reshape_list(lst, shape):
     total = 1
@@ -87,6 +88,10 @@ def join_list(tok: torch.Tensor, lst: list[str], model: HookedTransformer, prepe
         output.extend(model.to_tokens(item, prepend_bos=False).tolist()[0])
 
     return output, indices
+
+def get_placeholder_contents(s: str) -> list[str]:
+    formatter = string.Formatter()
+    return [field_name for _, field_name, _, _ in formatter.parse(s) if field_name is not None]
 
 def format_toks(model: HookedTransformer, prompt, placeholder_tok="X", prepend_bos: bool = True) -> tuple[torch.Tensor, list[int]]:
     tok = model.to_single_token(placeholder_tok)
