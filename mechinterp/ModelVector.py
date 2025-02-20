@@ -130,9 +130,32 @@ class InterpVector:
 
         return TunedLensOutput(topk_tokens, logits_topk.values, bottomk_tokens, logits_bottomk.values, act.shape[:-1], k)
     
-    def vo_project(self, k: int = 20) -> VOProjectionOutput:
+    def vo_project(self, l, h, k: int = 20) -> VOProjectionOutput:
         """Apply the VO of an attention head to a token, and then project to vocabulary."""
-        raise NotImplementedError("VO project not implemented yet")
+        
+        act = self.vector.clone()
+
+        wv_matrix = self.model.W_V[l][h]
+        wo_matrix = self.model.W_O[l][h]
+        vo_matrix = torch.matmul(wv_matrix, wo_matrix)
+
+        act = torch.matmul(act, vo_matrix)
+
+        logits = self.model.unembed(act)
+        logits_topk = torch.topk(logits, k, dim=-1, largest=True)
+        logits_bottomk = torch.topk(logits, k, dim=-1, largest=False)
+
+        topk_tokens = reshape_list(
+            self.model.to_str_tokens(logits_topk.indices.flatten()),
+            logits_topk.indices.shape
+        )
+
+        bottomk_tokens = reshape_list(
+            self.model.to_str_tokens(logits_bottomk.indices.flatten()),
+            logits_bottomk.indices.shape
+        )
+
+        return VOProjectionOutput(topk_tokens, logits_topk.values, bottomk_tokens, logits_bottomk.values, act.shape[:-1], k)
 
     def patchscopes(
             self,

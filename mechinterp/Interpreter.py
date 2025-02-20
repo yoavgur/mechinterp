@@ -79,8 +79,8 @@ class Interpreter:
             prepend_bos=prepend_bos
         )
 
-    def vo_project(self, act: InterpTensorType, k: int = 20) -> VOProjectionOutput:
-        raise NotImplementedError("VO projection not implemented yet")
+    def vo_project(self, act: InterpTensorType, l: int, h: int, k: int = 20) -> VOProjectionOutput:
+        return InterpVector(self.model, act).vo_project(l=l, h=h, k=k)
 
     def activation_patching(self):
         raise NotImplementedError("Activation patching not implemented yet")
