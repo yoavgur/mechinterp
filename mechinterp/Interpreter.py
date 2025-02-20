@@ -31,9 +31,9 @@ class Interpreter:
         Run the logit lens on the given activations.
         """
         return InterpVector(self.model, act).logit_lens(k=k, use_final_ln=use_final_ln, use_first_mlp=use_first_mlp)
-
-    def tuned_lens(self, act: InterpTensorType, k: int = 20, lens: str | None = None) -> TunedLensOutput:
-        return InterpVector(self.model, act).tuned_lens(k=k, lens=lens)
+    
+    def tuned_lens(self, act: InterpTensorType, l, k: int = 20) -> TunedLensOutput:
+        return InterpVector(self.model, act).tuned_lens(l=l, k=k)
     
     def patchscopes(
             self,

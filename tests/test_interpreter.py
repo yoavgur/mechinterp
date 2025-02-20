@@ -15,7 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.b
 
 @pytest.fixture(scope="session")
 def model_name() -> str:
-    return "gpt2-medium"
+    return "gpt2"
 
 @pytest.fixture(scope="session")
 def model(model_name: str):
@@ -111,3 +111,18 @@ def test_patchscopes_shapes_and_prompts(model: HookedTransformer, prompt: str, s
 
     with exception:
         interp.patchscopes(v, prompt, n=2)
+
+@pytest.mark.parametrize("input_token, layer, pos, top_tokens, bottom_tokens", [
+    ("It was the best of times", 10, 5, [' times', ' worlds', ' intentions', ' highs'], ['anwhile', 'hyde', 'ividual', 'StreamerBot']),
+    ("It was the best of times", 7, 3, [' dawn', ' culmination', ' hottest', ' last'], ['omever', 'ambo', 'apons', 'swer']),
+])
+
+def test_tuned_lens(model: HookedTransformer, input_token: str, layer: int, pos: int, top_tokens: list[str], bottom_tokens: list[str]):
+    interp = Interpreter(model)
+
+    logits, cache = model.run_with_cache(input_token)    
+    ll = interp.tuned_lens(cache[f"blocks.{layer}.hook_resid_post"][0, pos], l=layer, k=4)
+    print(ll)
+
+    assert ll.top == top_tokens
+    assert ll.bottom == bottom_tokens
