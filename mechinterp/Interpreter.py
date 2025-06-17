@@ -103,7 +103,7 @@ class Interpreter:
             return patching.get_act_patch_block_every(self.model, corrupted_tokens, clean_cache, scoring_function)
         
         elif patching_method == PatchingMethod.ResidPre:
-            return patching.get_act_patch_resid_mid(self.model, corrupted_tokens, clean_cache, scoring_function)
+            return patching.get_act_patch_resid_pre(self.model, corrupted_tokens, clean_cache, scoring_function)
 
         elif patching_method == PatchingMethod.ResidMid:
             return patching.get_act_patch_resid_mid(self.model, corrupted_tokens, clean_cache, scoring_function)
